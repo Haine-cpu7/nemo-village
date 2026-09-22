@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ねもの村</title>
+  <meta name="description" content="100体のねもが、なんとなく毎日暮らしている小さな村。" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Nemo Collection</p>
+      <h1>ねもの村 <span>🌱</span></h1>
+      <p class="lead">100体のねもが、なんとなく毎日暮らしています。</p>
+    </div>
+    <div class="today-card">
+      <div id="todayDate"></div>
+      <div id="weather"></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="notice">
+      <strong>今日の村</strong>
+      <span id="villageNote">みんな、思い思いに過ごしています。</span>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div>
+          <h2>今日のみんな</h2>
+          <p>カードを押すと、その子の暮らしをのぞけます。</p>
+        </div>
+        <div class="controls">
+          <input id="searchInput" type="search" placeholder="ねも番号で検索 例: 66" />
+          <select id="placeFilter" aria-label="場所で絞り込み">
+            <option value="">すべての場所</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="residentGrid" class="resident-grid"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>ねもの村 — Nemo Collection</p>
+    <p class="small">のんびり更新中。勝ち負けはありません。</p>
+  </footer>
+
+  <dialog id="residentDialog">
+    <button class="close-button" id="closeDialog" aria-label="閉じる">×</button>
+    <div id="residentDetail"></div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
