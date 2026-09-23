@@ -816,8 +816,14 @@ const walletStatus =
 const openCollectionButton =
   document.getElementById("openCollectionButton");
 
+const openSouvenirButton =
+  document.getElementById("openSouvenirButton");
+
 const collectionCount =
   document.getElementById("collectionCount");
+
+const souvenirCount =
+  document.getElementById("souvenirCount");
 
 const collectionSummary =
   document.getElementById("collectionSummary");
@@ -834,6 +840,7 @@ const closeCollectionDialog =
 
 connectWalletButton.disabled = true;
 openCollectionButton.disabled = true;
+openSouvenirButton.disabled = true;
 
 
 
@@ -1148,6 +1155,219 @@ function outingBookHtml() {
 }
 
 
+
+function souvenirCatalog() {
+  return Object.entries(OUTING_SOUVENIRS).flatMap(([place, names]) =>
+    names.map((name, index) => ({
+      place,
+      name,
+      index
+    }))
+  );
+}
+
+function souvenirDiscoveries() {
+  const result = new Map();
+
+  // allOutingHistory() is newest-first. Reverse so first discovery stays first.
+  const chronological = allOutingHistory().slice().reverse();
+
+  chronological.forEach(record => {
+    if (!record?.souvenir || !record?.place) return;
+
+    const current = result.get(record.souvenir);
+
+    if (!current) {
+      result.set(record.souvenir, {
+        name: record.souvenir,
+        place: record.place,
+        firstDate: record.date,
+        firstNemoId: Number(record.id),
+        count: 1
+      });
+    } else {
+      current.count += 1;
+    }
+  });
+
+  return result;
+}
+
+function souvenirBookStats() {
+  const discoveries = souvenirDiscoveries();
+  const total = souvenirCatalog().length;
+
+  const completedPlaces = Object.entries(OUTING_SOUVENIRS)
+    .filter(([, names]) =>
+      names.every(name => discoveries.has(name))
+    )
+    .length;
+
+  return {
+    discovered: discoveries.size,
+    total,
+    completedPlaces
+  };
+}
+
+function souvenirDateLabel(dkey) {
+  if (!dkey) return "";
+  const parts = String(dkey).split("-");
+  if (parts.length !== 3) return String(dkey);
+  return `${Number(parts[1])}/${Number(parts[2])}`;
+}
+
+function souvenirCardHtml(place, name, discovery) {
+  if (!discovery) {
+    return `
+      <div class="souvenir-card is-locked">
+        <div class="souvenir-object">？</div>
+        <div class="souvenir-card-copy">
+          <strong>？？？</strong>
+          <small>まだ見つけていません</small>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <button class="souvenir-card is-found"
+            type="button"
+            data-souvenir-nemo="${discovery.firstNemoId}">
+      <div class="souvenir-object">🎁</div>
+      <div class="souvenir-card-copy">
+        <strong>${name}</strong>
+        <small>初発見 ${souvenirDateLabel(discovery.firstDate)}</small>
+        <span>${displayName(discovery.firstNemoId)} が見つけました</span>
+        <em>${discovery.count > 1 ? `${discovery.count}回発見` : "NEW"}</em>
+      </div>
+    </button>
+  `;
+}
+
+function souvenirBookHtml() {
+  if (!walletAddress) {
+    return `
+      <div class="souvenir-book-locked">
+        <div class="souvenir-lock-icon">🎁</div>
+        <h4>おみやげ図鑑はウォレット接続後にひらきます</h4>
+        <p>
+          自分のねもがおでかけで持ち帰ったおみやげを、
+          32種類の図鑑として集められます。
+        </p>
+      </div>
+    `;
+  }
+
+  const discoveries = souvenirDiscoveries();
+  const stats = souvenirBookStats();
+
+  const placeSections = Object.entries(OUTING_SOUVENIRS)
+    .map(([place, names]) => {
+      const foundCount = names.filter(name => discoveries.has(name)).length;
+      const complete = foundCount === names.length;
+
+      return `
+        <section class="souvenir-place ${complete ? "is-complete" : ""}">
+          <div class="souvenir-place-head">
+            <div>
+              <span class="souvenir-place-icon">${placeIcon(place)}</span>
+              <strong>${place}</strong>
+              ${complete ? `<span class="souvenir-complete-badge">COMPLETE</span>` : ""}
+            </div>
+            <span>${foundCount} / ${names.length}</span>
+          </div>
+
+          <div class="souvenir-place-progress">
+            <span style="width:${(foundCount / names.length) * 100}%"></span>
+          </div>
+
+          <div class="souvenir-grid">
+            ${names.map(name =>
+              souvenirCardHtml(place, name, discoveries.get(name))
+            ).join("")}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="souvenir-overview">
+      <div class="souvenir-big-count">
+        <strong>${stats.discovered}</strong>
+        <span>/ ${stats.total}</span>
+      </div>
+
+      <div>
+        <strong>見つけたおみやげ</strong>
+        <small>場所コンプリート ${stats.completedPlaces} / 8</small>
+      </div>
+    </div>
+
+    <div class="souvenir-progress-main">
+      <span style="width:${(stats.discovered / stats.total) * 100}%"></span>
+    </div>
+
+    <p class="souvenir-book-help">
+      自分のねもがおでかけで持ち帰ったものだけが、少しずつ明るくなります。
+      過去のおでかけ記録も自動で反映されます。
+    </p>
+
+    <div class="souvenir-place-list">
+      ${placeSections}
+    </div>
+  `;
+}
+
+function openSouvenirBook() {
+  if (!nftDataReady) return;
+
+  const stats = walletAddress
+    ? souvenirBookStats()
+    : {discovered: 0, total: souvenirCatalog().length};
+
+  collectionDetail.innerHTML = `
+    <div class="collection-hero souvenir-hero">
+      <p class="collection-kicker">OUTING COLLECTION</p>
+      <h3>🎁 おみやげ図鑑</h3>
+      <p>ねもたちがおでかけ先から持ち帰った、小さなものたち。</p>
+
+      <div class="collection-total">
+        <strong>${walletAddress ? `${stats.discovered} / ${stats.total}` : `— / ${stats.total}`}</strong>
+        <span>おみやげ</span>
+      </div>
+    </div>
+
+    <div class="collection-body">
+      <div class="souvenir-book-nav">
+        <button type="button" id="backToNemoBook">← ねも図鑑へ</button>
+      </div>
+
+      ${souvenirBookHtml()}
+    </div>
+  `;
+
+  collectionDetail
+    .querySelector("#backToNemoBook")
+    ?.addEventListener("click", openCollection);
+
+  collectionDetail
+    .querySelectorAll("[data-souvenir-nemo]")
+    .forEach(button => {
+      button.addEventListener("click", () => {
+        const id = Number(button.dataset.souvenirNemo);
+        collectionDialog.close();
+        openResident(id);
+      });
+    });
+
+  if (!collectionDialog.open) {
+    collectionDialog.showModal();
+  }
+}
+
+
 function collectionOwnedCount() {
   return ownedIds.size;
 }
@@ -1234,17 +1454,21 @@ function nearFriendPairs() {
 function updateCollectionPanel() {
   if (!nftDataReady) {
     openCollectionButton.disabled = true;
+    openSouvenirButton.disabled = true;
     collectionCount.textContent = "— / 179";
+    souvenirCount.textContent = "🎁 — / 32";
     collectionSummary.textContent = "Nemo2023情報を読み込み中です…";
     return;
   }
 
   openCollectionButton.disabled = false;
+  openSouvenirButton.disabled = false;
 
   if (!walletAddress) {
     collectionCount.textContent = `179体`;
+    souvenirCount.textContent = "🎁 — / 32";
     collectionSummary.textContent =
-      "ウォレットをつなぐと「所持済み」スタンプとコレクションしるしが表示されます。";
+      "ウォレットをつなぐと「所持済み」スタンプ、コレクションしるし、おみやげ図鑑が表示されます。";
     return;
   }
 
@@ -1253,9 +1477,13 @@ function updateCollectionPanel() {
 
   collectionCount.textContent = `${count} / ${RESIDENT_COUNT}`;
 
+  const souvenirStats = souvenirBookStats();
+  souvenirCount.textContent = `🎁 ${souvenirStats.discovered} / ${souvenirStats.total}`;
+
   const outingToday = todayOutingRecords()
     .filter(item => ownedIds.has(Number(item.id))).length;
-  const outingText = `今日のおでかけ ${outingToday}/${count}体。`;
+  const outingText =
+    `今日のおでかけ ${outingToday}/${count}体。おみやげ ${souvenirStats.discovered}/${souvenirStats.total}種類。`;
 
   if (next) {
     const remaining = next.count - count;
@@ -1419,6 +1647,30 @@ function openCollection() {
     <div class="collection-body">
       ${outingBookHtml()}
 
+      <section class="collection-section souvenir-preview-section">
+        <div class="souvenir-preview-head">
+          <div>
+            <h4>🎁 おみやげ図鑑</h4>
+            <p>おでかけで見つけたものを、全32種類集められます。</p>
+          </div>
+          <button id="openSouvenirFromCollection" type="button">図鑑を見る →</button>
+        </div>
+        ${
+          walletAddress
+            ? (() => {
+                const s = souvenirBookStats();
+                return `
+                  <div class="souvenir-preview-progress">
+                    <strong>${s.discovered} / ${s.total}</strong>
+                    <span><i style="width:${(s.discovered/s.total)*100}%"></i></span>
+                    <small>場所コンプリート ${s.completedPlaces} / 8</small>
+                  </div>
+                `;
+              })()
+            : `<p class="collection-muted">ウォレットをつなぐと、おでかけで見つけたおみやげが図鑑に記録されます。</p>`
+        }
+      </section>
+
       <section class="collection-section">
         <h4>コレクションしるし</h4>
         <p>持っているねもの数に応じて、小さなしるしが解放されます。</p>
@@ -1498,6 +1750,10 @@ function openCollection() {
       openResident(Number(button.dataset.outingBookId));
     });
   });
+
+  collectionDetail
+    .querySelector("#openSouvenirFromCollection")
+    ?.addEventListener("click", openSouvenirBook);
 
   renderCollectionGrid();
   if (!collectionDialog.open) collectionDialog.showModal();
@@ -1875,6 +2131,11 @@ async function connectWallet() {
 openCollectionButton.addEventListener(
   "click",
   openCollection
+);
+
+openSouvenirButton.addEventListener(
+  "click",
+  openSouvenirBook
 );
 
 closeCollectionDialog.addEventListener(
