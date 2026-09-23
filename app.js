@@ -207,7 +207,7 @@ document.getElementById("todayDate").textContent =
 document.getElementById("weather").textContent = `${weather[1]} ${weather[0]}`;
 document.getElementById("villageNote").textContent = note;
 
-const residents = Array.from({ length: 100 }, (_, i) => {
+const residents = Array.from({ length: 179 }, (_, i) => {
   const id = i + 1;
   return {
     ...residentBase(id),
@@ -263,7 +263,7 @@ function renderResidents() {
       <div class="resident-top">
         <div class="avatar">${avatarFor(r.id)}</div>
         <div>
-          <div class="number">Nemo #${String(r.id).padStart(2, "0")}</div>
+          <div class="number">Nemo2023 #${r.id}</div>
           <div class="place">${placeIcon(r.placeName)} ${r.placeName}</div>
         </div>
       </div>
@@ -289,7 +289,7 @@ function openResident(id) {
       <div class="detail-title">
         <div class="avatar">${avatarFor(r.id)}</div>
         <div>
-          <h3>Nemo #${String(r.id).padStart(2, "0")}</h3>
+          <h3>Nemo2023 #${r.id}</h3>
           <p>${r.trait1} × ${r.trait2}</p>
         </div>
       </div>
