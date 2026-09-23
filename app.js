@@ -185,6 +185,9 @@ let nftItems = [];
 let walletAddress = null;
 let ownedIds = new Set();
 let ownedOnly = false;
+let nftDataReady = false;
+let walletBridgeReady = false;
+let walletBridgeError = null;
 
 function hashString(str) {
   let h = 2166136261 >>> 0;
@@ -825,62 +828,32 @@ function openResident(id) {
   dialog.showModal();
 }
 
-function resetWalletView() {
-  walletAddress = null;
-  ownedIds = new Set();
-  ownedOnly = false;
 
-  ownedOnlyButton.hidden = true;
-  ownedOnlyButton.classList.remove("active");
-  ownedOnlyButton.textContent =
-    "✨ 自分のねもだけ";
+function refreshWalletConnectAvailability() {
+  const hasInjectedWallet = !!window.ethereum;
+  const canConnect = nftDataReady && (walletBridgeReady || hasInjectedWallet);
 
-  clearWalletButton.hidden = true;
-  connectWalletButton.hidden = false;
-  connectWalletButton.textContent =
-    "ウォレットをつなぐ";
+  connectWalletButton.disabled = !canConnect;
 
-  walletStatus.textContent =
-    "未接続";
-
-  renderResidents();
+  if (!nftDataReady) {
+    walletStatus.textContent = "Nemo2023情報を読み込み中です…";
+  } else if (!walletBridgeReady && !hasInjectedWallet && !walletBridgeError) {
+    walletStatus.textContent = "スマホウォレット接続を準備中です…";
+  } else if (walletBridgeError && !hasInjectedWallet) {
+    walletStatus.textContent = "ウォレット接続機能を読み込めませんでした。ページを更新してください。";
+  } else if (!walletAddress) {
+    walletStatus.textContent = "未接続";
+  }
 }
 
-async function connectWallet() {
-  if (!window.ethereum) {
-    walletStatus.textContent =
-      "MetaMaskやRabbyなどのウォレット対応ブラウザが必要です。";
-    return;
-  }
+async function applyConnectedWallet(address) {
+  if (!address) return;
 
   try {
-    connectWalletButton.disabled = true;
-
-    walletStatus.textContent =
-      "ウォレットに接続しています…";
-
-    const accounts =
-      await window.ethereum.request({
-        method:"eth_requestAccounts"
-      });
-
-    const address =
-      accounts && accounts[0];
-
-    if (!address) {
-      throw new Error(
-        "ウォレットアドレスを取得できませんでした。"
-      );
-    }
-
     walletAddress = address;
+    walletStatus.textContent = "Polygon上のNemo2023を確認しています…";
 
-    walletStatus.textContent =
-      "Polygon上のNemo2023を確認しています…";
-
-    ownedIds =
-      await checkOwnedNemos(address);
-
+    ownedIds = await checkOwnedNemos(address);
     ownedOnly = false;
 
     connectWalletButton.hidden = true;
@@ -888,40 +861,84 @@ async function connectWallet() {
 
     if (ownedIds.size > 0) {
       ownedOnlyButton.hidden = false;
-
+      ownedOnlyButton.classList.remove("active");
+      ownedOnlyButton.textContent = "✨ 自分のねもだけ";
       walletStatus.textContent =
         `${shortAddress(address)}　✨ Nemo2023を ${ownedIds.size}体 見つけました。`;
     } else {
       ownedOnlyButton.hidden = true;
-
       walletStatus.textContent =
         `${shortAddress(address)}　このウォレットにはNemo2023が見つかりませんでした。`;
     }
 
     renderResidents();
+  } catch (err) {
+    console.warn("ownership check failed", err);
+    walletStatus.textContent =
+      `保有Nemoを確認できませんでした：${String(err?.message || err || "")}`;
+  }
+}
+
+function resetWalletView() {
+  walletAddress = null;
+  ownedIds = new Set();
+  ownedOnly = false;
+
+  ownedOnlyButton.hidden = true;
+  ownedOnlyButton.classList.remove("active");
+  ownedOnlyButton.textContent = "✨ 自分のねもだけ";
+
+  clearWalletButton.hidden = true;
+  connectWalletButton.hidden = false;
+  connectWalletButton.textContent = "ウォレットをつなぐ";
+
+  renderResidents();
+  refreshWalletConnectAvailability();
+}
+
+async function connectWallet() {
+  try {
+    if (window.NemoWalletConnect?.open) {
+      connectWalletButton.disabled = true;
+      walletStatus.textContent = "ウォレットを選んでください…";
+      await window.NemoWalletConnect.open();
+      return;
+    }
+
+    // Fallback for desktop extension wallets if AppKit failed to load.
+    if (window.ethereum) {
+      connectWalletButton.disabled = true;
+      walletStatus.textContent = "ウォレットに接続しています…";
+
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts"
+      });
+
+      const address = accounts && accounts[0];
+      if (!address) throw new Error("ウォレットアドレスを取得できませんでした。");
+
+      await applyConnectedWallet(address);
+      return;
+    }
+
+    walletStatus.textContent =
+      "スマホウォレット接続をまだ準備中です。少し待ってからもう一度押してください。";
 
   } catch (err) {
-    console.warn(
-      "wallet connect / ownership check failed",
-      err
-    );
-
-    const message =
-      String(err?.message || err || "");
+    console.warn("wallet connect failed", err);
+    const message = String(err?.message || err || "");
 
     if (
       message.toLowerCase().includes("user rejected") ||
+      message.toLowerCase().includes("rejected") ||
       message.includes("4001")
     ) {
-      walletStatus.textContent =
-        "ウォレット接続がキャンセルされました。";
+      walletStatus.textContent = "ウォレット接続がキャンセルされました。";
     } else {
-      walletStatus.textContent =
-        `確認できませんでした：${message}`;
+      walletStatus.textContent = `接続できませんでした：${message}`;
     }
-
   } finally {
-    connectWalletButton.disabled = false;
+    refreshWalletConnectAvailability();
   }
 }
 
@@ -977,8 +994,44 @@ ownedOnlyButton.addEventListener(
 
 clearWalletButton.addEventListener(
   "click",
-  resetWalletView
+  async () => {
+    try {
+      if (window.NemoWalletConnect?.disconnect) {
+        await window.NemoWalletConnect.disconnect();
+      }
+    } catch (err) {
+      console.warn("wallet disconnect failed", err);
+    }
+    resetWalletView();
+  }
 );
+
+
+window.addEventListener("nemo-wallet-ready", () => {
+  walletBridgeReady = true;
+  walletBridgeError = null;
+  refreshWalletConnectAvailability();
+});
+
+window.addEventListener("nemo-wallet-error", event => {
+  walletBridgeError = event.detail || "AppKit load error";
+  console.warn("AppKit load error", walletBridgeError);
+  refreshWalletConnectAvailability();
+});
+
+window.addEventListener("nemo-wallet-account", async event => {
+  const state = event.detail || {};
+
+  if (state.isConnected && state.address) {
+    // Avoid repeating the expensive 179-token ownership check for the same account.
+    if (walletAddress?.toLowerCase() === state.address.toLowerCase() && ownedIds.size >= 0) {
+      if (connectWalletButton.hidden) return;
+    }
+    await applyConnectedWallet(state.address);
+  } else if (walletAddress) {
+    resetWalletView();
+  }
+});
 
 if (window.ethereum?.on) {
   window.ethereum.on(
@@ -1062,7 +1115,8 @@ async function loadNftData() {
     syncStatus.className =
       "sync-status ready";
 
-    connectWalletButton.disabled = false;
+    nftDataReady = true;
+    refreshWalletConnectAvailability();
 
     renderResidents();
 
@@ -1073,8 +1127,10 @@ async function loadNftData() {
     syncStatus.className =
       "sync-status fallback";
 
+    nftDataReady = false;
     walletStatus.textContent =
       "NFT情報の読み込み後にウォレット連携できます。";
+    refreshWalletConnectAvailability();
 
     console.warn(
       "nfts.json could not be loaded",
