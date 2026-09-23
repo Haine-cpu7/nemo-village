@@ -221,6 +221,79 @@ const COLLECTION_MILESTONES = [
   {count: 179, icon: "🎉", name: "村のみんな"}
 ];
 
+
+const OUTING_RESULTS = {
+  "パン屋": [
+    "焼きたての匂いにつられて、予定より長居していました。",
+    "どのパンにするか真剣に悩んでいました。",
+    "店先でひと休みして、満足そうに帰ってきました。",
+    "小さなパンを見つけて、うれしそうに眺めていました。"
+  ],
+  "図書館": [
+    "窓辺で本を読んでいたら、あっという間に時間が過ぎました。",
+    "気になる本を何冊も手に取っていました。",
+    "静かな席を見つけて、のんびり過ごしてきました。",
+    "本の間から小さな発見を持ち帰ってきました。"
+  ],
+  "池": [
+    "水面のきらきらを眺めながら、ゆっくり歩いてきました。",
+    "丸い石を探すのに夢中になっていました。",
+    "水鳥を眺めながら、ぼんやり過ごしてきました。",
+    "池のそばの風が気持ちよかったようです。"
+  ],
+  "森": [
+    "木の実を探しながら、奥まで探検してきました。",
+    "木漏れ日の下で寄り道ばかりしていました。",
+    "少し道に迷ったものの、本人は楽しそうでした。",
+    "落ち葉を踏みながら、ゆっくり歩いてきました。"
+  ],
+  "花畑": [
+    "いちばん気になる花を探して歩いてきました。",
+    "花びらを眺めながら、ずいぶん長居していました。",
+    "風に揺れる花を見て、ごきげんで帰ってきました。",
+    "小さな花を見つけて、しばらく観察していました。"
+  ],
+  "温泉": [
+    "すっかり温まって、ほかほかで帰ってきました。",
+    "長湯して、いつも以上にのんびりしていました。",
+    "露天風呂で空を眺めてきたようです。",
+    "お風呂あがりまで満喫して帰ってきました。"
+  ],
+  "広場": [
+    "ベンチで休みながら、村のみんなを眺めていました。",
+    "気になるものを見つけて、あちこち歩き回っていました。",
+    "誰かの話し声を聞きながら、のんびり過ごしました。",
+    "風に吹かれながら、気ままに散歩してきました。"
+  ],
+  "雑貨屋": [
+    "棚のすみまでじっくり見て回ってきました。",
+    "小さな雑貨を眺めるだけで満足したようです。",
+    "かわいいものを見つけて、ずっと気にしていました。",
+    "店主と少しおしゃべりして帰ってきました。"
+  ]
+};
+
+const OUTING_SOUVENIRS = {
+  "パン屋": ["小さなパン", "クッキー", "パン屋の紙袋", "小麦の飾り"],
+  "図書館": ["紙のしおり", "小さなメモ", "紙の星", "古い栞"],
+  "池": ["水色の小石", "小さな貝がら", "水草のかけら", "透明な小びん"],
+  "森": ["どんぐり", "木の実", "きれいな葉っぱ", "小さな松ぼっくり"],
+  "花畑": ["花びら", "押し花", "四つ葉のクローバー", "小さな花冠"],
+  "温泉": ["温泉まんじゅう", "つるつるの石", "小さな手ぬぐい", "湯の花の包み"],
+  "広場": ["赤いリボン", "風船のかけら", "小さなボタン", "紙ひこうき"],
+  "雑貨屋": ["ガラス玉", "ちいさな鈴", "ふしぎな鍵", "絵はがき"]
+};
+
+const OUTING_MOODS = [
+  "ごきげんで帰ってきました。",
+  "ちょっと疲れたけれど、満足そうです。",
+  "何か考えごとをしながら帰ってきました。",
+  "また行きたそうにしています。",
+  "今日はいい一日だったようです。"
+];
+
+const OUTING_STORAGE_VERSION = "v1";
+
 const PLACE_SET_TARGET = 3;
 let collectionFilter = "all";
 
@@ -763,6 +836,318 @@ connectWalletButton.disabled = true;
 openCollectionButton.disabled = true;
 
 
+
+function outingStorageKey() {
+  if (!walletAddress) return null;
+  return `nemo-village-outings-${OUTING_STORAGE_VERSION}:${walletAddress.toLowerCase()}`;
+}
+
+function loadOutingStore() {
+  const key = outingStorageKey();
+  if (!key) return {};
+
+  try {
+    const raw = localStorage.getItem(key);
+    const data = raw ? JSON.parse(raw) : {};
+    return data && typeof data === "object" ? data : {};
+  } catch (err) {
+    console.warn("outing store load failed", err);
+    return {};
+  }
+}
+
+function saveOutingStore(store) {
+  const key = outingStorageKey();
+  if (!key) return;
+
+  try {
+    localStorage.setItem(key, JSON.stringify(store));
+  } catch (err) {
+    console.warn("outing store save failed", err);
+  }
+}
+
+function outingRecordKey(id, dkey=todayKey) {
+  return `${dkey}:${id}`;
+}
+
+function todayOuting(id) {
+  const store = loadOutingStore();
+  return store[outingRecordKey(id)] || null;
+}
+
+function outingHistoryFor(id, limit=4) {
+  const store = loadOutingStore();
+
+  return Object.values(store)
+    .filter(item => Number(item?.id) === Number(id))
+    .sort((a,b) => {
+      if (a.date !== b.date) return String(b.date).localeCompare(String(a.date));
+      return String(b.time || "").localeCompare(String(a.time || ""));
+    })
+    .slice(0, limit);
+}
+
+function allOutingHistory() {
+  return Object.values(loadOutingStore())
+    .filter(item => item && item.date && item.id)
+    .sort((a,b) => {
+      if (a.date !== b.date) return String(b.date).localeCompare(String(a.date));
+      return String(b.time || "").localeCompare(String(a.time || ""));
+    });
+}
+
+function todayOutingRecords() {
+  return allOutingHistory().filter(item => item.date === todayKey);
+}
+
+function outingStats() {
+  const all = allOutingHistory();
+  const places = new Set(all.map(item => item.place).filter(Boolean));
+
+  return {
+    total: all.length,
+    places: places.size,
+    today: all.filter(item => item.date === todayKey).length
+  };
+}
+
+function outingMeetId(id, place) {
+  const seedBase = `outing-meet-${walletAddress?.toLowerCase() || "guest"}-${todayKey}-${id}-${place}`;
+
+  if (rand(`${seedBase}-chance`) >= 0.72) {
+    return null;
+  }
+
+  const r = residents.find(x => x.id === id);
+
+  if (r?.friends?.length && rand(`${seedBase}-friend`) < 0.64) {
+    return pick(r.friends, `${seedBase}-friend-pick`);
+  }
+
+  const candidates = residents
+    .map(x => x.id)
+    .filter(otherId => otherId !== id);
+
+  return pick(candidates, `${seedBase}-resident-pick`);
+}
+
+function createTodayOuting(id, requestedPlace) {
+  if (!walletAddress || !ownedIds.has(id)) {
+    throw new Error("このNemoの保有を確認できません。");
+  }
+
+  const existing = todayOuting(id);
+  if (existing) return existing;
+
+  let place = requestedPlace;
+
+  if (!OUTING_RESULTS[place]) {
+    place = pick(
+      PLACES.map(([name]) => name),
+      `outing-random-place-${walletAddress.toLowerCase()}-${todayKey}-${id}`
+    );
+  }
+
+  const seedBase =
+    `outing-${walletAddress.toLowerCase()}-${todayKey}-${id}-${place}`;
+
+  const meetId = outingMeetId(id, place);
+  const now = new Date();
+
+  const record = {
+    id,
+    date: todayKey,
+    time: `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`,
+    place,
+    result: pick(OUTING_RESULTS[place], `${seedBase}-result`),
+    souvenir: pick(OUTING_SOUVENIRS[place], `${seedBase}-souvenir`),
+    mood: pick(OUTING_MOODS, `${seedBase}-mood`),
+    meetId
+  };
+
+  const store = loadOutingStore();
+  store[outingRecordKey(id)] = record;
+
+  // Keep the static site lightweight even after long-term use.
+  // Newest 1200 outing records per wallet are retained on this browser.
+  const entries = Object.entries(store).sort((a,b) => {
+    const ad = String(a[1]?.date || "");
+    const bd = String(b[1]?.date || "");
+    if (ad !== bd) return bd.localeCompare(ad);
+    return String(b[1]?.time || "").localeCompare(String(a[1]?.time || ""));
+  });
+
+  const trimmed = Object.fromEntries(entries.slice(0, 1200));
+  saveOutingStore(trimmed);
+
+  return record;
+}
+
+function outingEncounterHtml(record) {
+  if (!record?.meetId) return "";
+
+  const metOwned = ownedIds.has(Number(record.meetId));
+
+  return `
+    <div class="outing-encounter">
+      <span class="outing-mini-avatar avatar">${avatarHtml(Number(record.meetId))}</span>
+      <span>
+        <small>途中で会いました</small>
+        <strong>${displayName(Number(record.meetId))}${metOwned ? " ✨" : ""}</strong>
+      </span>
+    </div>
+  `;
+}
+
+function outingHistoryHtml(id, skipToday=true) {
+  let history = outingHistoryFor(id, 5);
+
+  if (skipToday) {
+    history = history.filter(item => item.date !== todayKey);
+  }
+
+  history = history.slice(0, 3);
+
+  if (!history.length) return "";
+
+  return `
+    <div class="outing-past">
+      <strong class="outing-past-title">さいきんのおでかけ</strong>
+      ${history.map(item => `
+        <div class="outing-past-row">
+          <span>${item.date.slice(5).replace("-", "/")}</span>
+          <span>${placeIcon(item.place)} ${item.place}</span>
+          <span>🎁 ${item.souvenir}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function outingPanelHtml(id) {
+  if (!walletAddress || !ownedIds.has(id)) return "";
+
+  const record = todayOuting(id);
+  const past = outingHistoryHtml(id, true);
+
+  if (record) {
+    return `
+      <div class="detail-section outing-panel">
+        <div class="outing-heading">
+          <div>
+            <h4>🚶 今日のおでかけ</h4>
+            <p>今日はもうおでかけしてきました。</p>
+          </div>
+          <span class="outing-done">✓ 帰宅済み</span>
+        </div>
+
+        <div class="outing-result">
+          <div class="outing-place">
+            <span>${placeIcon(record.place)}</span>
+            <strong>${record.place}</strong>
+            <small>${record.time}</small>
+          </div>
+
+          <p>${record.result}</p>
+          ${outingEncounterHtml(record)}
+          <p class="outing-mood">${record.mood}</p>
+
+          <div class="outing-souvenir">
+            <span>今日のおみやげ</span>
+            <strong>🎁 ${record.souvenir}</strong>
+          </div>
+        </div>
+
+        ${past}
+
+        <p class="outing-note">1体につき1日1回。明日になると、またおでかけできます。</p>
+      </div>
+    `;
+  }
+
+  const destinationOptions = [
+    `<option value="__random__">🎲 おまかせ</option>`,
+    ...PLACES.map(([name,icon]) =>
+      `<option value="${name}" ${residentBase(id).favoritePlace === name ? "selected" : ""}>${icon} ${name}</option>`
+    )
+  ].join("");
+
+  return `
+    <div class="detail-section outing-panel">
+      <div class="outing-heading">
+        <div>
+          <h4>🚶 おでかけ</h4>
+          <p>今日はどこへ行こう？</p>
+        </div>
+        <span class="outing-available">今日1回</span>
+      </div>
+
+      <div class="outing-controls">
+        <label>
+          <span>行き先</span>
+          <select id="outingDestination">${destinationOptions}</select>
+        </label>
+
+        <button id="outingStartButton" type="button" data-outing-id="${id}">
+          おでかけする
+        </button>
+      </div>
+
+      <p class="outing-hint">
+        行った先で何かを見つけたり、別のねもに会ったり、おみやげを持ち帰ることがあります。
+      </p>
+
+      ${past}
+
+      <p class="outing-note">
+        おでかけ記録は、この端末のブラウザに保存されます。署名・送金・ガス代はありません。
+      </p>
+    </div>
+  `;
+}
+
+function outingBookHtml() {
+  if (!walletAddress) return "";
+
+  const stats = outingStats();
+  const records = todayOutingRecords()
+    .filter(item => ownedIds.has(Number(item.id)));
+
+  const todayRows = records.length
+    ? records.map(record => `
+        <button class="outing-book-row" type="button" data-outing-book-id="${record.id}">
+          <span class="outing-book-avatar avatar">${avatarHtml(Number(record.id))}</span>
+          <span class="outing-book-copy">
+            <strong>${displayName(Number(record.id))}</strong>
+            <small>${placeIcon(record.place)} ${record.place}　🎁 ${record.souvenir}</small>
+          </span>
+        </button>
+      `).join("")
+    : `<p class="collection-muted">今日はまだ誰もおでかけしていません。所持済みのねもを開いて、行き先を選んでみてください。</p>`;
+
+  return `
+    <section class="collection-section outing-book-section">
+      <div class="outing-book-head">
+        <div>
+          <h4>🚶 おでかけ手帳</h4>
+          <p>自分のねもを、1体につき1日1回おでかけさせられます。</p>
+        </div>
+        <div class="outing-book-stats">
+          <span><strong>${stats.today}</strong> 今日</span>
+          <span><strong>${stats.total}</strong> 累計</span>
+          <span><strong>${stats.places}/8</strong> 行き先</span>
+        </div>
+      </div>
+
+      <div class="outing-book-list">${todayRows}</div>
+
+      <p class="outing-book-note">※記録はこのブラウザに保存されるため、別の端末とは自動同期されません。</p>
+    </section>
+  `;
+}
+
+
 function collectionOwnedCount() {
   return ownedIds.size;
 }
@@ -868,13 +1253,17 @@ function updateCollectionPanel() {
 
   collectionCount.textContent = `${count} / ${RESIDENT_COUNT}`;
 
+  const outingToday = todayOutingRecords()
+    .filter(item => ownedIds.has(Number(item.id))).length;
+  const outingText = `今日のおでかけ ${outingToday}/${count}体。`;
+
   if (next) {
     const remaining = next.count - count;
     collectionSummary.textContent =
-      `あなたのねも ${count}体。次のしるし「${next.icon} ${next.name}」まであと${remaining}体。`;
+      `あなたのねも ${count}体。${outingText} 次のしるし「${next.icon} ${next.name}」まであと${remaining}体。`;
   } else {
     collectionSummary.textContent =
-      `あなたのねも ${count}体。179体すべてのしるしがそろっています。`;
+      `あなたのねも ${count}体。${outingText} 179体すべてのしるしがそろっています。`;
   }
 }
 
@@ -1028,6 +1417,8 @@ function openCollection() {
     </div>
 
     <div class="collection-body">
+      ${outingBookHtml()}
+
       <section class="collection-section">
         <h4>コレクションしるし</h4>
         <p>持っているねもの数に応じて、小さなしるしが解放されます。</p>
@@ -1101,8 +1492,15 @@ function openCollection() {
     });
   });
 
+  collectionDetail.querySelectorAll("[data-outing-book-id]").forEach(button => {
+    button.addEventListener("click", () => {
+      collectionDialog.close();
+      openResident(Number(button.dataset.outingBookId));
+    });
+  });
+
   renderCollectionGrid();
-  collectionDialog.showModal();
+  if (!collectionDialog.open) collectionDialog.showModal();
 }
 
 
@@ -1264,6 +1662,7 @@ function openResident(id) {
       </div>
 
       ${holderPanel}
+      ${outingPanelHtml(id)}
 
       <div class="detail-section">
         <h4>なかよし</h4>
@@ -1324,6 +1723,28 @@ function openResident(id) {
     </div>
   `;
 
+  const outingStartButton = detail.querySelector("#outingStartButton");
+  if (outingStartButton) {
+    outingStartButton.addEventListener("click", () => {
+      const outingId = Number(outingStartButton.dataset.outingId);
+      const destination = detail.querySelector("#outingDestination")?.value || "__random__";
+
+      try {
+        outingStartButton.disabled = true;
+        outingStartButton.textContent = "おでかけ中…";
+
+        createTodayOuting(outingId, destination);
+        updateCollectionPanel();
+        openResident(outingId);
+      } catch (err) {
+        console.warn("outing failed", err);
+        outingStartButton.disabled = false;
+        outingStartButton.textContent = "おでかけする";
+        alert(String(err?.message || err || "おでかけできませんでした。"));
+      }
+    });
+  }
+
   detail.querySelectorAll(".friend-card").forEach(button => {
     button.addEventListener("click", () => {
       const friendId = Number(button.dataset.friendId);
@@ -1331,7 +1752,7 @@ function openResident(id) {
     });
   });
 
-  dialog.showModal();
+  if (!dialog.open) dialog.showModal();
 }
 
 
