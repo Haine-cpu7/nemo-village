@@ -1,0 +1,65 @@
+
+/* Nemo Collection lit.link hub */
+
+.nemo-hub-link {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: min(390px, 100%);
+  margin-top: 9px;
+  border: 1px solid #d8c8b9;
+  border-radius: 15px;
+  padding: 11px 13px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(226,239,216,.5), transparent 12rem),
+    rgba(255,255,255,.76);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 5px 16px rgba(88,70,55,.05);
+  transition: transform .12s ease, border-color .12s ease, background .12s ease;
+}
+
+.nemo-hub-link:hover {
+  transform: translateY(-1px);
+  border-color: #bca48d;
+  background-color: #fff;
+}
+
+.nemo-hub-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #f3eadf;
+  font-size: 17px;
+}
+
+.nemo-hub-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nemo-hub-copy strong {
+  font-size: 11px;
+}
+
+.nemo-hub-copy small {
+  color: var(--sub);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.nemo-hub-arrow {
+  color: #9b8774;
+  font-size: 14px;
+}
+
+@media (max-width: 520px) {
+  .nemo-hub-link {
+    width: 100%;
+  }
+}
