@@ -210,6 +210,21 @@ let nftDataReady = false;
 let walletBridgeReady = false;
 let walletBridgeError = null;
 
+const COLLECTION_MILESTONES = [
+  {count: 1,   icon: "🌱", name: "はじめまして"},
+  {count: 3,   icon: "🫶", name: "小さな仲間たち"},
+  {count: 5,   icon: "🏡", name: "ねも部屋"},
+  {count: 10,  icon: "✨", name: "にぎやかな家"},
+  {count: 20,  icon: "🌿", name: "小さな一族"},
+  {count: 50,  icon: "🌳", name: "村の大所帯"},
+  {count: 100, icon: "🌟", name: "ねも大集合"},
+  {count: 179, icon: "🎉", name: "村のみんな"}
+];
+
+const PLACE_SET_TARGET = 3;
+let collectionFilter = "all";
+
+
 function hashString(str) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < str.length; i++) {
@@ -725,7 +740,371 @@ const clearWalletButton =
 const walletStatus =
   document.getElementById("walletStatus");
 
+const openCollectionButton =
+  document.getElementById("openCollectionButton");
+
+const collectionCount =
+  document.getElementById("collectionCount");
+
+const collectionSummary =
+  document.getElementById("collectionSummary");
+
+const collectionDialog =
+  document.getElementById("collectionDialog");
+
+const collectionDetail =
+  document.getElementById("collectionDetail");
+
+const closeCollectionDialog =
+  document.getElementById("closeCollectionDialog");
+
+
 connectWalletButton.disabled = true;
+openCollectionButton.disabled = true;
+
+
+function collectionOwnedCount() {
+  return ownedIds.size;
+}
+
+function nextMilestone(count) {
+  return COLLECTION_MILESTONES.find(m => m.count > count) || null;
+}
+
+function ownedPlaceCounts() {
+  const counts = new Map(PLACES.map(([name]) => [name, 0]));
+
+  ownedIds.forEach(id => {
+    const place = residentBase(id).favoritePlace;
+    counts.set(place, (counts.get(place) || 0) + 1);
+  });
+
+  return counts;
+}
+
+function totalPlaceCounts() {
+  const counts = new Map(PLACES.map(([name]) => [name, 0]));
+
+  residents.forEach(r => {
+    counts.set(r.favoritePlace, (counts.get(r.favoritePlace) || 0) + 1);
+  });
+
+  return counts;
+}
+
+function uniqueOwnedFriendPairs() {
+  const pairs = new Map();
+
+  ownedIds.forEach(id => {
+    const r = residents.find(x => x.id === id);
+    if (!r) return;
+
+    r.friends.forEach(friendId => {
+      if (!ownedIds.has(friendId)) return;
+
+      const a = Math.min(id, friendId);
+      const b = Math.max(id, friendId);
+      const key = `${a}-${b}`;
+
+      if (!pairs.has(key)) {
+        pairs.set(key, {
+          a,
+          b,
+          label: relationshipLabel(a, b)
+        });
+      }
+    });
+  });
+
+  return Array.from(pairs.values()).sort((x, y) => {
+    if (x.a !== y.a) return x.a - y.a;
+    return x.b - y.b;
+  });
+}
+
+function nearFriendPairs() {
+  const items = new Map();
+
+  ownedIds.forEach(id => {
+    const r = residents.find(x => x.id === id);
+    if (!r) return;
+
+    r.friends.forEach(friendId => {
+      if (ownedIds.has(friendId)) return;
+
+      const key = `${id}-${friendId}`;
+      if (!items.has(key)) {
+        items.set(key, {
+          owned: id,
+          missing: friendId,
+          label: relationshipLabel(id, friendId)
+        });
+      }
+    });
+  });
+
+  return Array.from(items.values()).slice(0, 8);
+}
+
+function updateCollectionPanel() {
+  if (!nftDataReady) {
+    openCollectionButton.disabled = true;
+    collectionCount.textContent = "— / 179";
+    collectionSummary.textContent = "Nemo2023情報を読み込み中です…";
+    return;
+  }
+
+  openCollectionButton.disabled = false;
+
+  if (!walletAddress) {
+    collectionCount.textContent = `179体`;
+    collectionSummary.textContent =
+      "ウォレットをつなぐと「所持済み」スタンプとコレクションしるしが表示されます。";
+    return;
+  }
+
+  const count = collectionOwnedCount();
+  const next = nextMilestone(count);
+
+  collectionCount.textContent = `${count} / ${RESIDENT_COUNT}`;
+
+  if (next) {
+    const remaining = next.count - count;
+    collectionSummary.textContent =
+      `あなたのねも ${count}体。次のしるし「${next.icon} ${next.name}」まであと${remaining}体。`;
+  } else {
+    collectionSummary.textContent =
+      `あなたのねも ${count}体。179体すべてのしるしがそろっています。`;
+  }
+}
+
+function collectionCardHtml(r) {
+  const owned = ownedIds.has(r.id);
+
+  return `
+    <button class="collection-card ${owned ? "is-owned" : "is-unowned"}"
+            type="button"
+            data-collection-id="${r.id}">
+      <span class="collection-thumb avatar">${avatarHtml(r.id)}</span>
+      <span class="collection-card-copy">
+        <strong>${displayName(r.id)}</strong>
+        <small>${placeIcon(r.favoritePlace)} ${r.favoritePlace}</small>
+        <span class="collection-stamp">
+          ${walletAddress
+            ? (owned ? "✓ 所持済み" : "未所持")
+            : "村の住人"}
+        </span>
+      </span>
+    </button>
+  `;
+}
+
+function renderCollectionGrid() {
+  const grid = collectionDetail.querySelector("#collectionGrid");
+  if (!grid) return;
+
+  let list = residents;
+
+  if (walletAddress && collectionFilter === "owned") {
+    list = residents.filter(r => ownedIds.has(r.id));
+  } else if (walletAddress && collectionFilter === "unowned") {
+    list = residents.filter(r => !ownedIds.has(r.id));
+  }
+
+  grid.innerHTML = list.map(collectionCardHtml).join("");
+
+  grid.querySelectorAll(".collection-card").forEach(button => {
+    button.addEventListener("click", () => {
+      const id = Number(button.dataset.collectionId);
+      collectionDialog.close();
+      openResident(id);
+    });
+  });
+}
+
+function openCollection() {
+  if (!nftDataReady) return;
+
+  const count = collectionOwnedCount();
+  const totalPlaces = totalPlaceCounts();
+  const ownedPlaces = ownedPlaceCounts();
+  const pairs = uniqueOwnedFriendPairs();
+  const nearPairs = nearFriendPairs();
+
+  const milestoneHtml = COLLECTION_MILESTONES.map(m => {
+    const unlocked = walletAddress && count >= m.count;
+
+    return `
+      <div class="milestone ${unlocked ? "unlocked" : "locked"}">
+        <span class="milestone-icon">${m.icon}</span>
+        <div>
+          <strong>${m.name}</strong>
+          <small>${m.count}体</small>
+        </div>
+        <span class="milestone-state">${unlocked ? "解放済み" : "🔒"}</span>
+      </div>
+    `;
+  }).join("");
+
+  const placeHtml = PLACES.map(([name, icon]) => {
+    const owned = ownedPlaces.get(name) || 0;
+    const total = totalPlaces.get(name) || 0;
+    const unlocked = walletAddress && owned >= PLACE_SET_TARGET;
+
+    return `
+      <div class="place-set ${unlocked ? "unlocked" : ""}">
+        <div class="place-set-title">
+          <span>${icon} ${name}</span>
+          <strong>${walletAddress ? `${owned} / ${total}` : `${total}体`}</strong>
+        </div>
+        <div class="place-set-bar">
+          <span style="width:${walletAddress ? Math.min(100, (owned / PLACE_SET_TARGET) * 100) : 0}%"></span>
+        </div>
+        <small>
+          ${walletAddress
+            ? (unlocked
+                ? `✓ 「${name}の仲間」しるし解放`
+                : `あと${Math.max(0, PLACE_SET_TARGET - owned)}体で場所しるし`)
+            : `お気に入りが${name}のねも`}
+        </small>
+      </div>
+    `;
+  }).join("");
+
+  const pairsHtml = walletAddress
+    ? (
+        pairs.length
+          ? pairs.slice(0, 12).map(pair => `
+              <button class="pair-card" type="button" data-pair-id="${pair.a}">
+                <span class="pair-avatars">
+                  <span class="pair-avatar avatar">${avatarHtml(pair.a)}</span>
+                  <span class="pair-avatar avatar">${avatarHtml(pair.b)}</span>
+                </span>
+                <span>
+                  <strong>${displayName(pair.a)} × ${displayName(pair.b)}</strong>
+                  <small>🤝 ${pair.label}</small>
+                </span>
+              </button>
+            `).join("")
+          : `<p class="collection-muted">まだ「自分のねも同士」のなかよしペアは見つかっていません。</p>`
+      )
+    : `<p class="collection-muted">ウォレットをつなぐと、自分が持っているねも同士の「なかよしペア」が見つかります。</p>`;
+
+  const nearHtml = walletAddress && nearPairs.length
+    ? `
+      <div class="near-pairs">
+        ${nearPairs.map(pair => `
+          <button class="near-pair-card" type="button" data-near-id="${pair.missing}">
+            <span class="near-pair-images">
+              <span class="near-avatar avatar">${avatarHtml(pair.owned)}</span>
+              <span class="near-arrow">＋</span>
+              <span class="near-avatar avatar muted-avatar">${avatarHtml(pair.missing)}</span>
+            </span>
+            <span class="near-pair-copy">
+              <strong>${displayName(pair.owned)} のなかよし</strong>
+              <small>${displayName(pair.missing)} ・ ${pair.label}</small>
+              <span>この子がそろうと「あなたのねも同士」のペアになります。</span>
+            </span>
+          </button>
+        `).join("")}
+      </div>
+    `
+    : "";
+
+  const countText = walletAddress
+    ? `${count} / ${RESIDENT_COUNT}`
+    : `${RESIDENT_COUNT}体`;
+
+  collectionDetail.innerHTML = `
+    <div class="collection-hero">
+      <p class="collection-kicker">NEMO COLLECTION</p>
+      <h3>📖 ねも図鑑</h3>
+      <p>179体のねもを、村の住人として眺める図鑑です。</p>
+
+      <div class="collection-total">
+        <strong>${countText}</strong>
+        <span>${walletAddress ? "あなたのねも" : "村の住人"}</span>
+      </div>
+    </div>
+
+    <div class="collection-body">
+      <section class="collection-section">
+        <h4>コレクションしるし</h4>
+        <p>持っているねもの数に応じて、小さなしるしが解放されます。</p>
+        <div class="milestone-grid">${milestoneHtml}</div>
+      </section>
+
+      <section class="collection-section">
+        <h4>お気に入りの場所セット</h4>
+        <p>同じ場所がお気に入りのねもが3体そろうと、場所しるしが解放されます。</p>
+        <div class="place-set-grid">${placeHtml}</div>
+      </section>
+
+      <section class="collection-section">
+        <h4>あなたのねも同士の なかよし</h4>
+        <p>村で仲良しの2人をどちらも持っていると、ここにペアとして現れます。</p>
+        <div class="pair-grid">${pairsHtml}</div>
+      </section>
+
+      ${nearHtml ? `
+        <section class="collection-section">
+          <h4>あと1人で なかよしペア</h4>
+          <p>今いるねもの、まだ手元にいない仲良したちです。</p>
+          ${nearHtml}
+        </section>
+      ` : ""}
+
+      <section class="collection-section">
+        <div class="collection-grid-head">
+          <div>
+            <h4>179体の図鑑</h4>
+            <p>カードを押すと、その子の暮らしを見られます。</p>
+          </div>
+
+          ${walletAddress ? `
+            <div class="collection-filters" role="group" aria-label="図鑑フィルター">
+              <button type="button" data-collection-filter="all" class="${collectionFilter === "all" ? "active" : ""}">すべて</button>
+              <button type="button" data-collection-filter="owned" class="${collectionFilter === "owned" ? "active" : ""}">所持済み</button>
+              <button type="button" data-collection-filter="unowned" class="${collectionFilter === "unowned" ? "active" : ""}">未所持</button>
+            </div>
+          ` : ""}
+        </div>
+
+        <div id="collectionGrid" class="collection-grid"></div>
+      </section>
+    </div>
+  `;
+
+  collectionDetail.querySelectorAll("[data-collection-filter]").forEach(button => {
+    button.addEventListener("click", () => {
+      collectionFilter = button.dataset.collectionFilter;
+
+      collectionDetail.querySelectorAll("[data-collection-filter]").forEach(x => {
+        x.classList.toggle("active", x.dataset.collectionFilter === collectionFilter);
+      });
+
+      renderCollectionGrid();
+    });
+  });
+
+  collectionDetail.querySelectorAll("[data-pair-id]").forEach(button => {
+    button.addEventListener("click", () => {
+      collectionDialog.close();
+      openResident(Number(button.dataset.pairId));
+    });
+  });
+
+  collectionDetail.querySelectorAll("[data-near-id]").forEach(button => {
+    button.addEventListener("click", () => {
+      collectionDialog.close();
+      openResident(Number(button.dataset.nearId));
+    });
+  });
+
+  renderCollectionGrid();
+  collectionDialog.showModal();
+}
+
 
 function renderResidents() {
   const q =
@@ -867,6 +1246,7 @@ function openResident(id) {
         <div>
           <h3>${displayName(r.id)}</h3>
           <p>${r.trait1} × ${r.trait2}</p>
+          ${walletAddress && !isOwned ? `<span class="collection-mini-status">図鑑：未所持</span>` : ""}
           ${isOwned ? `<span class="owner-badge owner-badge-large">✨ あなたのねも</span>` : ""}
           <span class="season-chip">${currentSeason.emoji} ${currentSeason.name}</span>
           ${openSeaLink}
@@ -998,6 +1378,7 @@ async function applyConnectedWallet(address) {
     }
 
     renderResidents();
+    updateCollectionPanel();
   } catch (err) {
     console.warn("ownership check failed", err);
     walletStatus.textContent =
@@ -1020,6 +1401,7 @@ function resetWalletView() {
 
   renderResidents();
   refreshWalletConnectAvailability();
+  updateCollectionPanel();
 }
 
 async function connectWallet() {
@@ -1067,6 +1449,26 @@ async function connectWallet() {
     refreshWalletConnectAvailability();
   }
 }
+
+
+openCollectionButton.addEventListener(
+  "click",
+  openCollection
+);
+
+closeCollectionDialog.addEventListener(
+  "click",
+  () => collectionDialog.close()
+);
+
+collectionDialog.addEventListener(
+  "click",
+  event => {
+    if (event.target === collectionDialog) {
+      collectionDialog.close();
+    }
+  }
+);
 
 document
   .getElementById("closeDialog")
@@ -1185,6 +1587,7 @@ if (window.ethereum?.on) {
       clearWalletButton.hidden = false;
 
       renderResidents();
+      updateCollectionPanel();
     }
   );
 }
@@ -1245,6 +1648,7 @@ async function loadNftData() {
     refreshWalletConnectAvailability();
 
     renderResidents();
+    updateCollectionPanel();
 
   } catch (err) {
     syncStatus.textContent =
@@ -1257,6 +1661,7 @@ async function loadNftData() {
     walletStatus.textContent =
       "NFT情報の読み込み後にウォレット連携できます。";
     refreshWalletConnectAvailability();
+    updateCollectionPanel();
 
     console.warn(
       "nfts.json could not be loaded",
