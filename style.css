@@ -136,3 +136,69 @@ dialog {
     font-size: 23px;
   }
 }
+
+
+/* === v0.3 season + treasure history === */
+.season-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #f3eee8;
+  color: #6f6257;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.detail-title .season-chip {
+  margin-top: 8px;
+}
+
+.treasure-history {
+  border-top: 1px dashed var(--line);
+}
+
+.treasure-history-row {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.treasure-history-date {
+  color: var(--sub);
+  font-size: 11px;
+  padding-top: 2px;
+}
+
+.treasure-history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.treasure-history-main span {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--sub);
+  font-size: 13px;
+}
+
+body[data-season="春"] .notice { background: rgba(255,255,255,.94); }
+body[data-season="夏"] .notice { background: rgba(255,255,255,.94); }
+body[data-season="秋"] .notice { background: rgba(255,255,255,.94); }
+body[data-season="冬"] .notice { background: rgba(255,255,255,.94); }
+
+@media (max-width: 460px) {
+  .treasure-history-row {
+    grid-template-columns: 62px 1fr;
+    gap: 8px;
+  }
+}
