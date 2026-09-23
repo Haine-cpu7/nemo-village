@@ -26,6 +26,20 @@
       <span id="villageNote">みんな、思い思いに過ごしています。</span>
     </section>
 
+    <section class="wallet-panel" aria-label="ウォレット連携">
+      <div class="wallet-copy">
+        <strong>✨ 自分のねもを見つける</strong>
+        <span>ウォレットをつなぐと、持っているNemo2023が村の中で特別表示されます。</span>
+        <small>署名・送金はしません。公開アドレスとNFT保有数だけ確認します。</small>
+      </div>
+      <div class="wallet-actions">
+        <button id="connectWalletButton" class="wallet-button" type="button">ウォレットをつなぐ</button>
+        <button id="ownedOnlyButton" class="wallet-button secondary" type="button" hidden>✨ 自分のねもだけ</button>
+        <button id="clearWalletButton" class="wallet-link-button" type="button" hidden>表示を解除</button>
+      </div>
+      <div id="walletStatus" class="wallet-status">未接続</div>
+    </section>
+
     <section>
       <div class="section-head">
         <div>
