@@ -162,6 +162,27 @@ const VILLAGE_NOTES = [
   "誰かが花畑に小さな石を並べたようです。"
 ];
 
+
+const FRIEND_RELATIONS = [
+  "なんとなく気が合う",
+  "おさんぽ仲間",
+  "お茶仲間",
+  "読書仲間",
+  "温泉仲間",
+  "パン屋仲間",
+  "静かな時間を一緒に過ごす仲",
+  "会うとつい長話になる仲"
+];
+
+const FRIEND_MOMENTS = [
+  "少しだけ一緒に歩いていました。",
+  "どうでもいい話をして笑っていました。",
+  "隣に座って、しばらくぼんやりしていました。",
+  "見つけたものを見せ合っていました。",
+  "帰り道をなんとなく一緒に歩いていました。",
+  "同じ景色を眺めながら、静かに過ごしていました。"
+];
+
 const HOLDER_MESSAGES = [
   "今日はあなたの気配を感じて、少しごきげんです。",
   "秘密の庭の入口を、ちらっと見に行っていました。",
@@ -233,9 +254,29 @@ function seasonFor(date) {
   return Object.values(SEASONS).find(s => s.months.includes(month)) || SEASONS.spring;
 }
 
-function residentBase(id) {
+
+function friendshipScore(a, b) {
+  const x = Math.min(a, b);
+  const y = Math.max(a, b);
+  const baseScore = rand(`friend-score-${x}-${y}`);
+
+  const ra = residentBaseRaw(a);
+  const rb = residentBaseRaw(b);
+
+  let bonus = 0;
+  if (ra.favoritePlace === rb.favoritePlace) bonus += 0.08;
+  if (ra.trait1 === rb.trait1 || ra.trait1 === rb.trait2 ||
+      ra.trait2 === rb.trait1 || ra.trait2 === rb.trait2) {
+    bonus += 0.05;
+  }
+
+  return Math.min(0.999999, baseScore + bonus);
+}
+
+function residentBaseRaw(id) {
   const trait1 = pick(TRAITS, `trait1-${id}`);
   let trait2 = pick(TRAITS, `trait2-${id}`);
+
   if (trait1 === trait2) {
     trait2 = TRAITS[(TRAITS.indexOf(trait2)+3) % TRAITS.length];
   }
@@ -245,7 +286,48 @@ function residentBase(id) {
     trait1,
     trait2,
     like: pick(LIKES, `like-${id}`),
-    favoritePlace: pick(PLACES, `favorite-${id}`)[0],
+    favoritePlace: pick(PLACES, `favorite-${id}`)[0]
+  };
+}
+
+function closeFriends(id, count=3) {
+  const ranked = [];
+
+  for (let other = 1; other <= RESIDENT_COUNT; other++) {
+    if (other === id) continue;
+    ranked.push({
+      id: other,
+      score: friendshipScore(id, other)
+    });
+  }
+
+  ranked.sort((a,b) => b.score - a.score);
+  return ranked.slice(0, count).map(x => x.id);
+}
+
+function relationshipLabel(a, b) {
+  const x = Math.min(a, b);
+  const y = Math.max(a, b);
+  return pick(FRIEND_RELATIONS, `friend-label-${x}-${y}`);
+}
+
+function relationshipPlace(a, b) {
+  const x = Math.min(a, b);
+  const y = Math.max(a, b);
+  return pick(PLACES, `friend-place-${x}-${y}`)[0];
+}
+
+function friendMoment(a, b, date) {
+  const x = Math.min(a, b);
+  const y = Math.max(a, b);
+  return pick(FRIEND_MOMENTS, `friend-moment-${x}-${y}-${dateKey(date)}`);
+}
+
+function residentBase(id) {
+  const raw = residentBaseRaw(id);
+
+  return {
+    ...raw,
     stats: {
       "ねむけ": 20 + Math.floor(rand(`sleep-${id}`)*81),
       "好奇心": 20 + Math.floor(rand(`curiosity-${id}`)*81),
@@ -597,7 +679,8 @@ const residents =
         ...residentDay(id,today),
         treasures:
           residentTreasures(id,today),
-        treasureHistory: history
+        treasureHistory: history,
+        friends: closeFriends(id, 3)
       };
     }
   );
@@ -733,6 +816,35 @@ function openResident(id) {
       `
       : "";
 
+  const friendRows = r.friends.map(friendId => {
+    const friend = residents.find(x => x.id === friendId);
+    const samePlaceToday = friend && friend.placeName === r.placeName;
+    const label = relationshipLabel(id, friendId);
+    const usualPlace = relationshipPlace(id, friendId);
+    const moment = samePlaceToday
+      ? `今日は${placeIcon(r.placeName)} ${r.placeName}で、${friendMoment(id, friendId, today)}`
+      : `最近は${placeIcon(usualPlace)} ${usualPlace}で顔を合わせることが多いようです。`;
+
+    return `
+      <button class="friend-card" type="button" data-friend-id="${friendId}">
+        <span class="friend-avatar avatar">${avatarHtml(friendId)}</span>
+        <span class="friend-copy">
+          <strong>${displayName(friendId)}</strong>
+          <small>${label}</small>
+          <span>${moment}</span>
+        </span>
+      </button>
+    `;
+  }).join("");
+
+  const todayTogether = r.friends
+    .map(friendId => residents.find(x => x.id === friendId))
+    .filter(friend => friend && friend.placeName === r.placeName);
+
+  const todayFriendNote = todayTogether.length
+    ? `<div class="friend-today">🤝 今日は <strong>${todayTogether.map(x => displayName(x.id)).join("・")}</strong> と同じ場所にいます。</div>`
+    : "";
+
   const treasureHistoryHtml =
     r.treasureHistory.length
       ? r.treasureHistory
@@ -768,9 +880,16 @@ function openResident(id) {
         <p>${placeIcon(r.placeName)} <strong>${r.placeName}</strong></p>
         <p>${r.action}</p>
         <p>ごきげん　${stars(r.mood)}</p>
+        ${todayFriendNote}
       </div>
 
       ${holderPanel}
+
+      <div class="detail-section">
+        <h4>なかよし</h4>
+        <p class="friend-intro">この子が村でよく一緒にいる3人です。</p>
+        <div class="friend-list">${friendRows}</div>
+      </div>
 
       <div class="detail-section">
         <h4>この子のこと</h4>
@@ -824,6 +943,13 @@ function openResident(id) {
       </div>
     </div>
   `;
+
+  detail.querySelectorAll(".friend-card").forEach(button => {
+    button.addEventListener("click", () => {
+      const friendId = Number(button.dataset.friendId);
+      openResident(friendId);
+    });
+  });
 
   dialog.showModal();
 }

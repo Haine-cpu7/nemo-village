@@ -700,3 +700,91 @@ dialog::backdrop {
     gap: 8px;
   }
 }
+
+
+/* === v0.6 friend relationships === */
+.friend-intro {
+  margin: -2px 0 12px;
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.friend-list {
+  display: grid;
+  gap: 9px;
+}
+
+.friend-card {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: #fffdfa;
+  border-radius: 14px;
+  padding: 10px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.friend-card:hover {
+  transform: translateY(-1px);
+  border-color: #d9c4b0;
+  box-shadow: 0 6px 18px rgba(88,70,55,.07);
+}
+
+.friend-avatar.avatar {
+  width: 54px;
+  height: 54px;
+  flex-basis: 54px;
+  border-radius: 13px;
+}
+
+.friend-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.friend-copy strong {
+  font-size: 13px;
+}
+
+.friend-copy small {
+  color: #8a7461;
+  font-size: 10px;
+}
+
+.friend-copy > span {
+  color: var(--sub);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.friend-today {
+  margin-top: 12px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f7f0e9;
+  color: #6e5d50;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+@media (max-width: 460px) {
+  .friend-card {
+    grid-template-columns: 48px 1fr;
+    gap: 10px;
+  }
+
+  .friend-avatar.avatar {
+    width: 48px;
+    height: 48px;
+    flex-basis: 48px;
+  }
+}
