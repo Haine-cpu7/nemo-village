@@ -294,6 +294,108 @@ const OUTING_MOODS = [
 
 const OUTING_STORAGE_VERSION = "v1";
 
+const JOB_STORAGE_VERSION = "v1";
+
+const NEMO_JOBS = {
+  "パン屋のおてつだい": {
+    icon: "🥐",
+    place: "パン屋",
+    base: 10,
+    stat: "人なつこさ",
+    descriptions: [
+      "焼きたてのパンを棚に並べました。",
+      "袋詰めを手伝って、お客さんに渡しました。",
+      "店先をきれいにして、いい匂いの中で働きました。",
+      "小さなパンの補充をがんばりました。"
+    ]
+  },
+  "図書館の本整理": {
+    icon: "📚",
+    place: "図書館",
+    base: 9,
+    stat: "好奇心",
+    descriptions: [
+      "返ってきた本を棚に戻しました。",
+      "本棚の順番を静かに整えました。",
+      "迷子になった本を見つけて元の場所へ戻しました。",
+      "閉館前の机をきれいに片づけました。"
+    ]
+  },
+  "森の採集": {
+    icon: "🌲",
+    place: "森",
+    base: 11,
+    stat: "好奇心",
+    descriptions: [
+      "森を歩いて、使えそうな木の実を集めました。",
+      "小道の落ち葉をよけながら採集しました。",
+      "森の奥まで行って、たくさん歩きました。",
+      "村で使えそうな枝や木の実を見つけました。"
+    ]
+  },
+  "温泉のおそうじ": {
+    icon: "♨️",
+    place: "温泉",
+    base: 12,
+    stat: "のんびり度",
+    descriptions: [
+      "桶をきれいに並べて、湯場を整えました。",
+      "脱衣所をていねいにおそうじしました。",
+      "露天風呂のまわりをきれいにしました。",
+      "お客さんが気持ちよく使えるように整えました。"
+    ]
+  },
+  "花畑のおせわ": {
+    icon: "🌸",
+    place: "花畑",
+    base: 9,
+    stat: "のんびり度",
+    descriptions: [
+      "花に水をあげて、枯れた葉を取りました。",
+      "小さな芽のまわりをきれいにしました。",
+      "花壇の土をやわらかく整えました。",
+      "風で倒れた花をそっと起こしました。"
+    ]
+  },
+  "広場のおてつだい": {
+    icon: "🌿",
+    place: "広場",
+    base: 10,
+    stat: "人なつこさ",
+    descriptions: [
+      "ベンチのまわりを片づけました。",
+      "掲示板のお知らせを貼り替えました。",
+      "広場に落ちていた紙を集めました。",
+      "村のみんなが使う場所を整えました。"
+    ]
+  },
+  "池の見まわり": {
+    icon: "💧",
+    place: "池",
+    base: 10,
+    stat: "ねむけ",
+    descriptions: [
+      "池のまわりをゆっくり見まわりました。",
+      "水辺に落ちていた枝を片づけました。",
+      "小道が歩きやすいか確認しました。",
+      "水面を眺めつつ、ちゃんと見まわりもしました。"
+    ]
+  },
+  "雑貨屋のおてつだい": {
+    icon: "🛍",
+    place: "雑貨屋",
+    base: 11,
+    stat: "人なつこさ",
+    descriptions: [
+      "棚の商品をきれいに並べました。",
+      "小さな雑貨の値札を確認しました。",
+      "包み紙をそろえて、お店を整えました。",
+      "店主に頼まれた荷物を運びました。"
+    ]
+  }
+};
+
+
 const PLACE_SET_TARGET = 3;
 let collectionFilter = "all";
 
@@ -819,11 +921,17 @@ const openCollectionButton =
 const openSouvenirButton =
   document.getElementById("openSouvenirButton");
 
+const openJobButton =
+  document.getElementById("openJobButton");
+
 const collectionCount =
   document.getElementById("collectionCount");
 
 const souvenirCount =
   document.getElementById("souvenirCount");
+
+const coinCount =
+  document.getElementById("coinCount");
 
 const collectionSummary =
   document.getElementById("collectionSummary");
@@ -841,6 +949,7 @@ const closeCollectionDialog =
 connectWalletButton.disabled = true;
 openCollectionButton.disabled = true;
 openSouvenirButton.disabled = true;
+openJobButton.disabled = true;
 
 
 
@@ -1156,6 +1265,403 @@ function outingBookHtml() {
 
 
 
+
+function jobStorageKey() {
+  if (!walletAddress) return null;
+  return `nemo-village-jobs-${JOB_STORAGE_VERSION}:${walletAddress.toLowerCase()}`;
+}
+
+function loadJobStore() {
+  const key = jobStorageKey();
+  if (!key) return {};
+
+  try {
+    const raw = localStorage.getItem(key);
+    const data = raw ? JSON.parse(raw) : {};
+    return data && typeof data === "object" ? data : {};
+  } catch (err) {
+    console.warn("job store load failed", err);
+    return {};
+  }
+}
+
+function saveJobStore(store) {
+  const key = jobStorageKey();
+  if (!key) return;
+
+  try {
+    localStorage.setItem(key, JSON.stringify(store));
+  } catch (err) {
+    console.warn("job store save failed", err);
+  }
+}
+
+function jobRecordKey(id, dkey=todayKey) {
+  return `${dkey}:${id}`;
+}
+
+function todayJob(id) {
+  return loadJobStore()[jobRecordKey(id)] || null;
+}
+
+function allJobHistory() {
+  return Object.values(loadJobStore())
+    .filter(item => item && item.date && item.id)
+    .sort((a,b) => {
+      if (a.date !== b.date) return String(b.date).localeCompare(String(a.date));
+      return String(b.time || "").localeCompare(String(a.time || ""));
+    });
+}
+
+function jobHistoryFor(id, limit=5) {
+  return allJobHistory()
+    .filter(item => Number(item.id) === Number(id))
+    .slice(0, limit);
+}
+
+function todayJobRecords() {
+  return allJobHistory().filter(item => item.date === todayKey);
+}
+
+function nemoCoinBalance() {
+  return allJobHistory().reduce(
+    (sum, item) => sum + Number(item.reward || 0),
+    0
+  );
+}
+
+function jobStats() {
+  const all = allJobHistory();
+  return {
+    total: all.length,
+    today: all.filter(item => item.date === todayKey).length,
+    coins: all.reduce((sum, item) => sum + Number(item.reward || 0), 0)
+  };
+}
+
+function jobPersonalityBonus(id, jobName) {
+  const r = residents.find(x => x.id === id);
+  const job = NEMO_JOBS[jobName];
+  if (!r || !job) return 0;
+
+  const stat = Number(r.stats?.[job.stat] || 50);
+  return Math.max(0, Math.min(4, Math.floor(stat / 25)));
+}
+
+function jobFavoriteBonus(id, jobName) {
+  const r = residents.find(x => x.id === id);
+  const job = NEMO_JOBS[jobName];
+  if (!r || !job) return 0;
+  return r.favoritePlace === job.place ? 3 : 0;
+}
+
+function jobLuckyBonus(id, jobName) {
+  const seed =
+    `job-lucky-${walletAddress?.toLowerCase() || "guest"}-${todayKey}-${id}-${jobName}`;
+
+  const roll = rand(seed);
+  if (roll > 0.94) return 5;
+  if (roll > 0.78) return 2;
+  return 0;
+}
+
+function createTodayJob(id, jobName) {
+  if (!walletAddress || !ownedIds.has(id)) {
+    throw new Error("このNemoの保有を確認できません。");
+  }
+
+  const existing = todayJob(id);
+  if (existing) return existing;
+
+  const job = NEMO_JOBS[jobName];
+  if (!job) throw new Error("おしごとを選んでください。");
+
+  const personalityBonus = jobPersonalityBonus(id, jobName);
+  const favoriteBonus = jobFavoriteBonus(id, jobName);
+  const luckyBonus = jobLuckyBonus(id, jobName);
+  const reward = job.base + personalityBonus + favoriteBonus + luckyBonus;
+
+  const now = new Date();
+  const seedBase =
+    `job-${walletAddress.toLowerCase()}-${todayKey}-${id}-${jobName}`;
+
+  const record = {
+    id,
+    date: todayKey,
+    time: `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`,
+    jobName,
+    icon: job.icon,
+    place: job.place,
+    description: pick(job.descriptions, `${seedBase}-description`),
+    base: job.base,
+    personalityBonus,
+    favoriteBonus,
+    luckyBonus,
+    reward
+  };
+
+  const store = loadJobStore();
+  store[jobRecordKey(id)] = record;
+
+  // Keep only the newest 1500 work records per wallet/browser.
+  const entries = Object.entries(store).sort((a,b) => {
+    const ad = String(a[1]?.date || "");
+    const bd = String(b[1]?.date || "");
+    if (ad !== bd) return bd.localeCompare(ad);
+    return String(b[1]?.time || "").localeCompare(String(a[1]?.time || ""));
+  });
+
+  saveJobStore(Object.fromEntries(entries.slice(0, 1500)));
+
+  return record;
+}
+
+function jobHistoryHtml(id) {
+  const history = jobHistoryFor(id, 5)
+    .filter(item => item.date !== todayKey)
+    .slice(0, 3);
+
+  if (!history.length) return "";
+
+  return `
+    <div class="job-history">
+      <strong class="job-history-title">さいきんのおしごと</strong>
+      ${history.map(item => `
+        <div class="job-history-row">
+          <span>${item.date.slice(5).replace("-", "/")}</span>
+          <span>${item.icon} ${item.jobName}</span>
+          <span>＋${item.reward}🪙</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function jobPanelHtml(id) {
+  if (!walletAddress || !ownedIds.has(id)) return "";
+
+  const record = todayJob(id);
+  const past = jobHistoryHtml(id);
+
+  if (record) {
+    return `
+      <div class="detail-section job-panel">
+        <div class="job-heading">
+          <div>
+            <h4>💼 今日のおしごと</h4>
+            <p>今日はもうおしごとを終えました。</p>
+          </div>
+          <span class="job-done">✓ おつかれさま</span>
+        </div>
+
+        <div class="job-result">
+          <div class="job-result-title">
+            <span>${record.icon}</span>
+            <div>
+              <strong>${record.jobName}</strong>
+              <small>${record.time}</small>
+            </div>
+          </div>
+
+          <p>${record.description}</p>
+
+          <div class="job-reward-breakdown">
+            <div><span>基本報酬</span><strong>＋${record.base}</strong></div>
+            <div><span>個性ボーナス</span><strong>＋${record.personalityBonus}</strong></div>
+            <div><span>お気に入り場所</span><strong>＋${record.favoriteBonus}</strong></div>
+            ${record.luckyBonus ? `<div><span>ちょっとラッキー</span><strong>＋${record.luckyBonus}</strong></div>` : ""}
+          </div>
+
+          <div class="job-reward-total">
+            <span>今日のお給料</span>
+            <strong>＋${record.reward} ねもコイン 🪙</strong>
+          </div>
+        </div>
+
+        ${past}
+
+        <p class="job-note">
+          1体につき1日1回。ねもコインは「ねもの村」の中だけで使うゲーム内通貨です。
+        </p>
+      </div>
+    `;
+  }
+
+  const options = Object.entries(NEMO_JOBS).map(([name, job]) => {
+    const favorite = residentBase(id).favoritePlace === job.place;
+    return `
+      <option value="${name}" ${favorite ? "selected" : ""}>
+        ${job.icon} ${name}${favorite ? " ★" : ""}
+      </option>
+    `;
+  }).join("");
+
+  return `
+    <div class="detail-section job-panel">
+      <div class="job-heading">
+        <div>
+          <h4>💼 ねものおしごと</h4>
+          <p>今日はどのおしごとをする？</p>
+        </div>
+        <span class="job-available">今日1回</span>
+      </div>
+
+      <div class="job-controls">
+        <label>
+          <span>おしごと</span>
+          <select id="jobSelect">${options}</select>
+        </label>
+
+        <button id="jobStartButton" type="button" data-job-id="${id}">
+          おしごとする
+        </button>
+      </div>
+
+      <p class="job-hint">
+        おしごとによって基本報酬が違います。性格やお気に入りの場所で、少しボーナスがつくこともあります。
+      </p>
+
+      ${past}
+
+      <p class="job-note">
+        ねもコインに現金価値・換金機能はありません。記録はこのブラウザに保存されます。
+      </p>
+    </div>
+  `;
+}
+
+function jobBookRowsHtml() {
+  const records = todayJobRecords()
+    .filter(item => ownedIds.has(Number(item.id)));
+
+  if (!records.length) {
+    return `
+      <p class="collection-muted">
+        今日はまだ誰もおしごとしていません。
+        所持済みのねもを開いて、おしごとを選んでみてください。
+      </p>
+    `;
+  }
+
+  return records.map(record => `
+    <button class="job-book-row"
+            type="button"
+            data-job-book-id="${record.id}">
+      <span class="job-book-avatar avatar">${avatarHtml(Number(record.id))}</span>
+      <span class="job-book-copy">
+        <strong>${displayName(Number(record.id))}</strong>
+        <small>${record.icon} ${record.jobName}</small>
+      </span>
+      <strong class="job-book-coin">＋${record.reward}🪙</strong>
+    </button>
+  `).join("");
+}
+
+function openJobBook() {
+  if (!nftDataReady) return;
+
+  const stats = walletAddress
+    ? jobStats()
+    : {total: 0, today: 0, coins: 0};
+
+  collectionDetail.innerHTML = `
+    <div class="collection-hero job-hero">
+      <p class="collection-kicker">NEMO WORKS</p>
+      <h3>💼 ねものおしごと</h3>
+      <p>ねもたちが村でちょっとだけ働いて、ねもコインを持ち帰ります。</p>
+
+      <div class="collection-total">
+        <strong>${walletAddress ? `${stats.coins} 🪙` : "— 🪙"}</strong>
+        <span>ねもコイン</span>
+      </div>
+    </div>
+
+    <div class="collection-body">
+      <div class="souvenir-book-nav">
+        <button type="button" id="backToNemoBookFromJobs">← ねも図鑑へ</button>
+      </div>
+
+      ${
+        walletAddress
+          ? `
+            <section class="job-dashboard">
+              <div class="job-stat-card">
+                <span>今日</span>
+                <strong>${stats.today}</strong>
+                <small>おしごと</small>
+              </div>
+              <div class="job-stat-card">
+                <span>累計</span>
+                <strong>${stats.total}</strong>
+                <small>おしごと</small>
+              </div>
+              <div class="job-stat-card is-coin">
+                <span>残高</span>
+                <strong>${stats.coins}</strong>
+                <small>ねもコイン</small>
+              </div>
+            </section>
+
+            <section class="collection-section">
+              <h4>今日のおしごと</h4>
+              <p>1体につき1日1回。おでかけとは別におしごとできます。</p>
+              <div class="job-book-list">${jobBookRowsHtml()}</div>
+            </section>
+
+            <section class="collection-section">
+              <h4>村のおしごと</h4>
+              <div class="job-catalog">
+                ${Object.entries(NEMO_JOBS).map(([name, job]) => `
+                  <div class="job-catalog-card">
+                    <span>${job.icon}</span>
+                    <div>
+                      <strong>${name}</strong>
+                      <small>${job.place} ・ 基本 ${job.base}🪙</small>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            </section>
+
+            <div class="job-economy-note">
+              <strong>🪙 ねもコインについて</strong>
+              <p>
+                ねもの村の中だけで使うゲーム内通貨です。
+                現金・暗号資産への換金や、NFTとの交換機能はありません。
+                今後、家具や小物など村の中のお買い物に使えるように育てる予定です。
+              </p>
+            </div>
+          `
+          : `
+            <div class="job-book-locked">
+              <div>💼</div>
+              <h4>ウォレットをつなぐと、おしごとできます</h4>
+              <p>自分が持っているNemo2023だけがおしごとできます。</p>
+            </div>
+          `
+      }
+    </div>
+  `;
+
+  collectionDetail
+    .querySelector("#backToNemoBookFromJobs")
+    ?.addEventListener("click", openCollection);
+
+  collectionDetail
+    .querySelectorAll("[data-job-book-id]")
+    .forEach(button => {
+      button.addEventListener("click", () => {
+        collectionDialog.close();
+        openResident(Number(button.dataset.jobBookId));
+      });
+    });
+
+  if (!collectionDialog.open) {
+    collectionDialog.showModal();
+  }
+}
+
+
 function souvenirCatalog() {
   return Object.entries(OUTING_SOUVENIRS).flatMap(([place, names]) =>
     names.map((name, index) => ({
@@ -1455,20 +1961,24 @@ function updateCollectionPanel() {
   if (!nftDataReady) {
     openCollectionButton.disabled = true;
     openSouvenirButton.disabled = true;
+    openJobButton.disabled = true;
     collectionCount.textContent = "— / 179";
     souvenirCount.textContent = "🎁 — / 32";
+    coinCount.textContent = "🪙 0 ねもコイン";
     collectionSummary.textContent = "Nemo2023情報を読み込み中です…";
     return;
   }
 
   openCollectionButton.disabled = false;
   openSouvenirButton.disabled = false;
+  openJobButton.disabled = false;
 
   if (!walletAddress) {
     collectionCount.textContent = `179体`;
     souvenirCount.textContent = "🎁 — / 32";
+    coinCount.textContent = "🪙 0 ねもコイン";
     collectionSummary.textContent =
-      "ウォレットをつなぐと「所持済み」スタンプ、コレクションしるし、おみやげ図鑑が表示されます。";
+      "ウォレットをつなぐと「所持済み」スタンプ、コレクションしるし、おみやげ図鑑、おしごとが使えます。";
     return;
   }
 
@@ -1480,10 +1990,13 @@ function updateCollectionPanel() {
   const souvenirStats = souvenirBookStats();
   souvenirCount.textContent = `🎁 ${souvenirStats.discovered} / ${souvenirStats.total}`;
 
+  const jobs = jobStats();
+  coinCount.textContent = `🪙 ${jobs.coins} ねもコイン`;
+
   const outingToday = todayOutingRecords()
     .filter(item => ownedIds.has(Number(item.id))).length;
   const outingText =
-    `今日のおでかけ ${outingToday}/${count}体。おみやげ ${souvenirStats.discovered}/${souvenirStats.total}種類。`;
+    `今日のおでかけ ${outingToday}/${count}体。おみやげ ${souvenirStats.discovered}/${souvenirStats.total}種類。おしごと ${jobs.today}/${count}体・${jobs.coins}🪙。`;
 
   if (next) {
     const remaining = next.count - count;
@@ -1647,6 +2160,31 @@ function openCollection() {
     <div class="collection-body">
       ${outingBookHtml()}
 
+      <section class="collection-section job-preview-section">
+        <div class="job-preview-head">
+          <div>
+            <h4>💼 ねものおしごと</h4>
+            <p>自分のねもが村で働いて、ねもコインを持ち帰ります。</p>
+          </div>
+          <button id="openJobsFromCollection" type="button">おしごとを見る →</button>
+        </div>
+
+        ${
+          walletAddress
+            ? (() => {
+                const j = jobStats();
+                return `
+                  <div class="job-preview-stats">
+                    <span><strong>${j.today}</strong><small>今日</small></span>
+                    <span><strong>${j.total}</strong><small>累計</small></span>
+                    <span class="coin"><strong>${j.coins}</strong><small>🪙 ねもコイン</small></span>
+                  </div>
+                `;
+              })()
+            : `<p class="collection-muted">ウォレットをつなぐと、自分のねもがおしごとできるようになります。</p>`
+        }
+      </section>
+
       <section class="collection-section souvenir-preview-section">
         <div class="souvenir-preview-head">
           <div>
@@ -1754,6 +2292,10 @@ function openCollection() {
   collectionDetail
     .querySelector("#openSouvenirFromCollection")
     ?.addEventListener("click", openSouvenirBook);
+
+  collectionDetail
+    .querySelector("#openJobsFromCollection")
+    ?.addEventListener("click", openJobBook);
 
   renderCollectionGrid();
   if (!collectionDialog.open) collectionDialog.showModal();
@@ -1919,6 +2461,7 @@ function openResident(id) {
 
       ${holderPanel}
       ${outingPanelHtml(id)}
+      ${jobPanelHtml(id)}
 
       <div class="detail-section">
         <h4>なかよし</h4>
@@ -1997,6 +2540,28 @@ function openResident(id) {
         outingStartButton.disabled = false;
         outingStartButton.textContent = "おでかけする";
         alert(String(err?.message || err || "おでかけできませんでした。"));
+      }
+    });
+  }
+
+  const jobStartButton = detail.querySelector("#jobStartButton");
+  if (jobStartButton) {
+    jobStartButton.addEventListener("click", () => {
+      const id = Number(jobStartButton.dataset.jobId);
+      const jobName = detail.querySelector("#jobSelect")?.value;
+
+      try {
+        jobStartButton.disabled = true;
+        jobStartButton.textContent = "おしごと中…";
+
+        createTodayJob(id, jobName);
+        updateCollectionPanel();
+        openResident(id);
+      } catch (err) {
+        console.warn("job failed", err);
+        jobStartButton.disabled = false;
+        jobStartButton.textContent = "おしごとする";
+        alert(String(err?.message || err || "おしごとできませんでした。"));
       }
     });
   }
@@ -2136,6 +2701,11 @@ openCollectionButton.addEventListener(
 openSouvenirButton.addEventListener(
   "click",
   openSouvenirBook
+);
+
+openJobButton.addEventListener(
+  "click",
+  openJobBook
 );
 
 closeCollectionDialog.addEventListener(
